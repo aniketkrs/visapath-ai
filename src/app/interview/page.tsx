@@ -101,6 +101,7 @@ export default function InterviewPage() {
   const [scoring, setScoring] = useState(false);
   const [interviewOver, setInterviewOver] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [examInputMethod, setExamInputMethod] = useState<"voice" | "text" | null>(null);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -200,10 +201,11 @@ export default function InterviewPage() {
       setTextInput("");
       setVoiceTranscript("");
       setInterviewMode(newMode);
+      setExamInputMethod(null);
 
       // Start new mode
       if (newMode === "exam") {
-        await startExam();
+        // Don't auto-start voice — let user choose mic or text
       } else if (newMode === "demo") {
         startCached();
       } else {
@@ -315,7 +317,7 @@ export default function InterviewPage() {
   // -------------------------------------------------------------------------
   // Interview brief (shown before any interaction)
   // -------------------------------------------------------------------------
-  const showBrief = interviewMode !== "demo" && practiceTurns.length === 0 && voiceTurns.length === 0 && !interviewOver;
+  const showBrief = interviewMode !== "demo" && practiceTurns.length === 0 && voiceTurns.length === 0 && !interviewOver && !(interviewMode === "exam" && examInputMethod === null);
 
   // -------------------------------------------------------------------------
   // Final report
@@ -499,6 +501,7 @@ export default function InterviewPage() {
               setInterviewOver(false);
               setTextInput("");
               setVoiceTranscript("");
+              setExamInputMethod(null);
             }}
             className="flex-1"
           >
@@ -665,8 +668,77 @@ export default function InterviewPage() {
         </Card>
       )}
 
-      {/* Exam Mode — Voice */}
-      {interviewMode === "exam" && (
+      {/* Exam Mode — Input Method Choice */}
+      {interviewMode === "exam" && !examInputMethod && (
+        <div className="py-8 animate-fade-in">
+          <h3 className="text-center text-lg font-bold text-[var(--text-primary)] mb-2">
+            How do you want to answer?
+          </h3>
+          <p className="text-center text-xs text-[var(--text-secondary)] mb-8">
+            Choose your preferred way to respond to the consular officer
+          </p>
+          <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+            {/* Voice option */}
+            <button
+              onClick={async () => {
+                setExamInputMethod("voice");
+                await startExam();
+              }}
+              className="flex flex-col items-center gap-3 p-6 rounded-2xl border-2 transition-all duration-200 hover:scale-[1.02]"
+              style={{
+                borderColor: "var(--trust-blue)",
+                backgroundColor: "var(--bg-surface)",
+                boxShadow: "var(--shadow-card)",
+              }}
+            >
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: "var(--trust-blue)" }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              </div>
+              <span className="text-sm font-semibold text-[var(--text-primary)]">Speak</span>
+              <span className="text-xs text-[var(--text-secondary)] text-center">
+                Live voice interview with AI officer
+              </span>
+            </button>
+            {/* Text option */}
+            <button
+              onClick={() => {
+                setExamInputMethod("text");
+                startPractice();
+              }}
+              className="flex flex-col items-center gap-3 p-6 rounded-2xl border-2 transition-all duration-200 hover:scale-[1.02]"
+              style={{
+                borderColor: "var(--border-light)",
+                backgroundColor: "var(--bg-surface)",
+                boxShadow: "var(--shadow-card)",
+              }}
+            >
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: "var(--indigo-deep)" }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <span className="text-sm font-semibold text-[var(--text-primary)]">Type</span>
+              <span className="text-xs text-[var(--text-secondary)] text-center">
+                Written answers, scored the same way
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Exam Mode — Voice (after choosing Speak) */}
+      {interviewMode === "exam" && examInputMethod === "voice" && (
         <div className="flex flex-col items-center py-8">
           <MicButton
             status={
@@ -700,6 +772,55 @@ export default function InterviewPage() {
               Tap the mic to stop the session
             </p>
           )}
+          {/* Switch to text if voice fails */}
+          {voiceMode === "text" && voiceStatus === "idle" && voiceTurns.length === 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setExamInputMethod("text")}
+              className="mt-4"
+            >
+              Switch to text input
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Exam Mode — Text (after choosing Type) */}
+      {interviewMode === "exam" && examInputMethod === "text" && (
+        <div className="mb-6">
+          <textarea
+            ref={textareaRef}
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handlePracticeSubmit();
+              }
+            }}
+            placeholder="Type your answer as if speaking to the consular officer..."
+            rows={4}
+            className="w-full p-4 rounded-xl text-sm text-[var(--text-primary)] placeholder-[var(--text-secondary)]/50 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--trust-blue)] transition-shadow"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+            }}
+            disabled={scoring}
+          />
+          <div className="flex justify-between items-center mt-3">
+            <span className="text-xs text-[var(--text-secondary)]">
+              {textInput.length} characters
+            </span>
+            <Button
+              onClick={handlePracticeSubmit}
+              disabled={!textInput.trim() || scoring}
+              loading={scoring}
+              size="sm"
+            >
+              Submit Answer
+            </Button>
+          </div>
         </div>
       )}
 
@@ -741,8 +862,8 @@ export default function InterviewPage() {
         </div>
       )}
 
-      {/* Practice Mode — Suggested Answer */}
-      {interviewMode === "practice" && practiceTurns.length > 0 && !scoring && (
+      {/* Practice/Exam-Text Mode — Suggested Answer */}
+      {(interviewMode === "practice" || (interviewMode === "exam" && examInputMethod === "text")) && practiceTurns.length > 0 && !scoring && (
         <Card className="mb-6 !p-4">
           <p className="text-xs text-[var(--text-secondary)] mb-2 font-medium uppercase tracking-wider">
             Suggested answer (previous question)
@@ -844,8 +965,8 @@ export default function InterviewPage() {
         </div>
       )}
 
-      {/* Practice mode transcript */}
-      {practiceTurns.length > 0 && interviewMode === "practice" && (
+      {/* Practice/Exam-Text mode transcript */}
+      {practiceTurns.length > 0 && (interviewMode === "practice" || (interviewMode === "exam" && examInputMethod === "text")) && (
         <div className="mb-6">
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3">
             Transcript
