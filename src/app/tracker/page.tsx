@@ -28,6 +28,92 @@ const DESCRIPTIONS = [
 
 const STAGE_ICONS = ["📦", "📁", "📝", "💳", "📅", "🎤", "✅"];
 
+const STAGE_INSTRUCTIONS: Record<number, { instructions: string[]; documents: string[]; nextStep: string }> = {
+  1: {
+    instructions: [
+      "Review your personalized statement and make any edits needed",
+      "Go through your document checklist and note what you already have",
+      "Practice your mock interview to build confidence",
+    ],
+    documents: [],
+    nextStep: "Start gathering the documents from your checklist. Check each item as you collect it.",
+  },
+  2: {
+    instructions: [
+      "Collect every document listed in your checklist",
+      "Get both originals and photocopies where specified",
+      "Check freshness rules — some documents must be recent (e.g., bank statements within 30 days)",
+    ],
+    documents: [
+      "Passport (original + photocopy of bio page)",
+      "Bank statements (last 6 months, stamped by bank)",
+      "Employment letter on company letterhead",
+      "Property documents (if applicable)",
+      "Previous passport with travel stamps (if any)",
+    ],
+    nextStep: "Fill out the DS-160 form online at ceac.state.gov. Have your passport and package statement ready.",
+  },
+  3: {
+    instructions: [
+      "Go to ceac.state.gov and start a new DS-160 application",
+      "Fill in all details exactly as in your passport",
+      "Use your personalized statement for the purpose-of-visit section",
+      "Upload a compliant photo (white background, 2x2 inches)",
+      "Save and print the confirmation page with barcode",
+    ],
+    documents: [
+      "DS-160 confirmation page (print this)",
+      "Passport",
+      "Digital photo (white background, 600x600 px minimum)",
+      "Your VisaPath statement (for reference)",
+    ],
+    nextStep: "Pay the MRV visa application fee. The current fee is $185 (approx ₹15,500).",
+  },
+  4: {
+    instructions: [
+      "Pay the MRV fee at an authorized bank (HDFC Bank or via NEFT)",
+      "Keep the receipt number — you need it to book your appointment",
+      "Payment may take up to 2 business days to reflect in the system",
+    ],
+    documents: [
+      "MRV fee payment receipt",
+      "DS-160 confirmation page",
+    ],
+    nextStep: "Book your interview slot at ustraveldocs.com. Use your MRV receipt number.",
+  },
+  5: {
+    instructions: [
+      "Go to ustraveldocs.com and log in with your MRV receipt number",
+      "Select your preferred embassy/consulate (New Delhi, Mumbai, Chennai, Hyderabad, or Kolkata)",
+      "Choose an available date and time slot",
+      "Print the appointment confirmation letter",
+    ],
+    documents: [
+      "Appointment confirmation letter (print this)",
+      "DS-160 confirmation page",
+      "MRV fee receipt",
+      "Passport",
+    ],
+    nextStep: "Attend your interview. Arrive 15 minutes early. Bring ALL documents from your checklist.",
+  },
+  6: {
+    instructions: [
+      "Arrive at the consulate 15 minutes before your appointment",
+      "Carry all documents in a clear folder — originals and copies separately",
+      "Answer confidently and concisely — just like you practiced",
+      "The officer may approve, refuse, or request additional documents (221g)",
+    ],
+    documents: [
+      "Passport",
+      "DS-160 confirmation page",
+      "Appointment confirmation letter",
+      "All checklist documents (originals + copies)",
+      "Your VisaPath statement (for reference, not to show the officer)",
+    ],
+    nextStep: "If approved, your passport will be delivered via courier in 3-5 business days with the visa stamp.",
+  },
+};
+
 export default function TrackerPage() {
   const router = useRouter();
   const { tracker, setTrackerStage } = useVisaStore();
@@ -50,6 +136,8 @@ export default function TrackerPage() {
     if (step <= safeStage) return;
     setTrackerStage(step);
   };
+
+  const stageData = STAGE_INSTRUCTIONS[safeStage];
 
   if (hasError) {
     return (
@@ -111,6 +199,57 @@ export default function TrackerPage() {
               </p>
             )}
           </Card>
+
+          {/* Instructions for this stage */}
+          {stageData && stageData.instructions.length > 0 && (
+            <Card className="animate-slide-up" style={{ animationDelay: "0.12s" }}>
+              <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-4">
+                What to do
+              </h3>
+              <ul className="space-y-2.5">
+                {stageData.instructions.map((instruction, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-full bg-[var(--trust-blue)]/10 text-[var(--trust-blue)] text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm text-[var(--text-bright)]">{instruction}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          {/* Documents needed for this stage */}
+          {stageData && stageData.documents.length > 0 && (
+            <Card className="animate-slide-up" style={{ animationDelay: "0.14s" }}>
+              <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-4">
+                Documents needed
+              </h3>
+              <ul className="space-y-2">
+                {stageData.documents.map((doc, i) => (
+                  <li key={i} className="flex items-start gap-2.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--trust-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    <span className="text-sm text-[var(--text-bright)]">{doc}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          {/* What's next */}
+          {stageData && !isLastStage && (
+            <Card className="animate-slide-up border-l-2 !border-l-[var(--score-strong)]" style={{ animationDelay: "0.16s" }}>
+              <h3 className="text-sm font-semibold text-[var(--score-strong)] uppercase tracking-wider mb-2">
+                What&apos;s next
+              </h3>
+              <p className="text-sm text-[var(--text-bright)] leading-relaxed">
+                {stageData.nextStep}
+              </p>
+            </Card>
+          )}
 
           {/* Completed stages summary */}
           {safeStage > 1 && (

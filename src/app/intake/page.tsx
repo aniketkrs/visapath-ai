@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useVisaStore } from "@/store/useVisaStore";
-import { intakeSchema, getVisibleQuestions } from "@/lib/intake/schema";
+import { intakeSchema, getVisibleQuestions, getSectionForQuestion, INTAKE_SECTIONS } from "@/lib/intake/schema";
 import type { IntakeAnswers } from "@/lib/types";
 
 const COUNTRIES = [
@@ -15,7 +15,7 @@ const COUNTRY_NAMES: Record<string, string> = {
   US: "🇺🇸 United States", UK: "🇬🇧 United Kingdom", CA: "🇨🇦 Canada",
   AU: "🇦🇺 Australia", DE: "🇩🇪 Germany", FR: "🇫🇷 France", SG: "🇸🇬 Singapore",
   AE: "🇦🇪 UAE", JP: "🇯🇵 Japan", TH: "🇹🇭 Thailand", MY: "🇲🇾 Malaysia",
-  NZ: "🇳🇿 New Zealand", IT: "🇮🇹 Italy", ES: "🇪🇸 Spain", NL: "🇳🇱 Netherlands",
+  NZ: "🇳🇿 New Zealand", IT: "🇮🇹 Italy", ES: "🇪🇸 Spain", NL: "🇳🇿 Netherlands",
   CH: "🇨🇭 Switzerland", SE: "🇸🇪 Sweden", KR: "🇰🇷 South Korea", HK: "🇭🇰 Hong Kong",
   SA: "🇸🇦 Saudi Arabia", QA: "🇶🇦 Qatar", CN: "🇨🇳 China", BR: "🇧🇷 Brazil",
   ZA: "🇿🇦 South Africa",
@@ -30,6 +30,11 @@ export default function IntakePage() {
   const currentQuestion = visibleQuestions[intakeStep];
   const totalSteps = visibleQuestions.length;
   const progress = totalSteps > 0 ? ((intakeStep + 1) / totalSteps) * 100 : 0;
+
+  const sectionInfo = getSectionForQuestion(visibleQuestions, intakeStep);
+  const visibleSections = INTAKE_SECTIONS.filter((s) =>
+    visibleQuestions.some((q) => q.section === s.id)
+  );
 
   const getCurrentValue = useCallback(() => {
     if (!currentQuestion) return "";
@@ -70,7 +75,6 @@ export default function IntakePage() {
   const handleNext = () => {
     if (!currentQuestion) return;
 
-    // Validate
     if (currentQuestion.validate) {
       const err = currentQuestion.validate(getCurrentValue(), intakeAnswers);
       if (err) {
@@ -91,7 +95,6 @@ export default function IntakePage() {
     if (intakeStep < totalSteps - 1) {
       setIntakeStep(intakeStep + 1);
     } else {
-      // Done — go to generating
       router.push("/generating");
     }
   };
@@ -133,35 +136,76 @@ export default function IntakePage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8" onKeyDown={handleKeyDown}>
-      {/* Progress bar */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-xs text-[var(--text-secondary)]">
-            Question {intakeStep + 1} of {totalSteps}
-          </span>
-          <span className="text-xs text-[var(--text-secondary)]">
-            {Math.round(progress)}%
-          </span>
+      {/* Section progress indicator */}
+      {sectionInfo && (
+        <div className="mb-6 animate-fade-in">
+          <div className="flex items-center gap-2 mb-3">
+            {visibleSections.map((s, i) => {
+              const isActive = i === sectionInfo.sectionIndex;
+              const isComplete = i < sectionInfo.sectionIndex;
+              return (
+                <div key={s.id} className="flex items-center gap-2 flex-1">
+                  <div
+                    className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
+                      isActive
+                        ? "bg-gradient-to-r from-[var(--trust-blue)] to-[var(--indigo-deep)]"
+                        : isComplete
+                          ? "bg-[var(--score-strong)]"
+                          : "bg-[var(--bg-mid)]"
+                    }`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-semibold text-[var(--trust-blue)]">
+              Step {sectionInfo.sectionIndex + 1} of {visibleSections.length}: {sectionInfo.sectionMeta.title}
+            </span>
+            <span className="text-xs text-[var(--text-secondary)]">
+              Question {intakeStep + 1} of {totalSteps}
+            </span>
+          </div>
         </div>
-        <div className="h-1.5 bg-[var(--bg-mid)] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-[var(--trust-blue)] to-[var(--indigo-deep)] rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
+      )}
+
+      {/* Section header (only on first question of each section) */}
+      {sectionInfo?.isFirstInSection && (
+        <div className="mb-4 animate-slide-up">
+          <Card className="!p-4 border-l-2 !border-l-[var(--trust-blue)] bg-[var(--trust-blue)]/5">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] mb-1">
+              {sectionInfo.sectionMeta.title}
+            </h3>
+            <p className="text-xs text-[var(--text-secondary)]">
+              {sectionInfo.sectionMeta.subtitle}
+            </p>
+          </Card>
         </div>
-      </div>
+      )}
 
       {/* Question card */}
       <Card className="animate-fade-in mb-6">
         <h2 className="text-xl font-bold mb-2">{currentQuestion.label}</h2>
         {currentQuestion.description && (
-          <p className="text-sm text-[var(--text-secondary)] mb-6">
+          <p className="text-sm text-[var(--text-secondary)] mb-4">
             {currentQuestion.description}
           </p>
         )}
+        {currentQuestion.whyItMatters && (
+          <div className="flex items-start gap-2 mb-5 p-3 rounded-lg bg-[var(--bg-mid)]">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--trust-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4" />
+              <path d="M12 8h.01" />
+            </svg>
+            <span className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              {currentQuestion.whyItMatters}
+            </span>
+          </div>
+        )}
 
         {/* Input rendering */}
-        <div className="mt-4">
+        <div className="mt-2">
           {currentQuestion.type === "text" && (
             <input
               type="text"
@@ -277,12 +321,17 @@ export default function IntakePage() {
       {/* Navigation */}
       <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
         <Button variant="ghost" onClick={handleBack}>
-          ← Back
+          {intakeStep === 0 ? "← Change Visa Type" : "← Back"}
         </Button>
         <Button onClick={handleNext}>
           {intakeStep === totalSteps - 1 ? "Generate Package →" : "Next →"}
         </Button>
       </div>
+
+      {/* Keyboard hint */}
+      <p className="text-center text-xs text-[var(--text-secondary)] mt-4">
+        Press Enter to continue
+      </p>
     </div>
   );
 }

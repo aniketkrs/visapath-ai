@@ -130,6 +130,7 @@ async function callElevenLabsAgent(
       const t = data.type;
 
       if (t === "conversation_initiation_metadata" || t === "initiation_response") {
+        ws.send(JSON.stringify({ type: "user_activity" }));
         ws.send(JSON.stringify({ type: "user_message", text: message }));
         return;
       }
@@ -182,34 +183,63 @@ function buildScoringPrompt(
   transcript: string,
   history: string[]
 ): string {
-  return `You are a US consular officer scoring an Indian B-1/B-2 applicant's answer.
+  return `As a US consular officer, evaluate this Indian B-1/B-2 applicant's answer.
 
 Applicant profile:
 ${JSON.stringify(profile, null, 2)}
 
-Question: ${questionText}
+Question asked: ${questionText}
 Applicant's answer: ${transcript}
 
 Previous Q&A:
 ${history.length > 0 ? history.join("\n") : "(none)"}
 
-Score this answer on:
+Evaluate on these dimensions:
 - confidence (0-100): How confident and specific the answer is
-- consistency (0-100): How consistent with the profile
+- consistency (0-100): How consistent with the applicant profile
 - tiesStrength (0-100): How strong the ties to India sound
-- redFlags: Any contradictions or concerning statements
-- followUp: A probing follow-up question for the weakest area
+- redFlags: Array of contradictions or concerning statements (empty array if none)
+- followUp: A probing follow-up question targeting the weakest area
 
-Return ONLY valid JSON:
-{ "confidence": N, "consistency": N, "tiesStrength": N, "redFlags": [...], "followUp": "..." }`;
+Your response must contain a JSON object with exactly these keys: confidence, consistency, tiesStrength, redFlags, followUp. You may add brief commentary before or after the JSON.`;
 }
 
 function parseAndValidateScore(raw: string): TurnScore | null {
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return null;
+  let parsed: any = null;
 
   try {
-    const parsed = JSON.parse(jsonMatch[0]);
+    parsed = JSON.parse(raw);
+  } catch {}
+
+  if (!parsed) {
+    const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      try { parsed = JSON.parse(codeBlockMatch[1].trim()); } catch {}
+    }
+  }
+
+  if (!parsed) {
+    const firstBrace = raw.indexOf("{");
+    if (firstBrace !== -1) {
+      let depth = 0;
+      for (let i = firstBrace; i < raw.length; i++) {
+        if (raw[i] === "{") depth++;
+        else if (raw[i] === "}") depth--;
+        if (depth === 0) {
+          try { parsed = JSON.parse(raw.slice(firstBrace, i + 1)); } catch {}
+          break;
+        }
+      }
+    }
+  }
+
+  if (!parsed) {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    try { parsed = JSON.parse(jsonMatch[0]); } catch { return null; }
+  }
+
+  try {
 
     if (
       typeof parsed.confidence !== "number" ||

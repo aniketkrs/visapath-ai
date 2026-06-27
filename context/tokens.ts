@@ -1,38 +1,36 @@
-// VisaPath AI — Design Tokens (Technical PRD §21)
-// Premium dark theme: ink-navy + Trust-Blue accent
-
+// VisaPath AI — Design Tokens (Light Theme)
 export const tokens = {
   colors: {
     // Brand accent
-    trustBlue: "#3B82F6",
-    indigoDeep: "#6366F1",
+    trustBlue: "#2563EB",
+    indigoDeep: "#4F46E5",
 
     // Score semantics (visa bands)
-    scoreStrong: "#22C55E",    // ≥ 80
-    scoreModerate: "#F59E0B",  // 60–79
-    scoreWeak: "#EF4444",      // < 60
-    info: "#539DF5",
+    scoreStrong: "#16A34A",    // ≥ 80
+    scoreModerate: "#D97706",  // 60–79
+    scoreWeak: "#DC2626",      // < 60
+    info: "#2563EB",
 
-    // Backgrounds (ink-navy)
-    bgBase: "#0B0F1A",
-    bgSurface: "#121826",
-    bgMid: "#1A2234",
-    bgElevated: "#202A40",
+    // Backgrounds (light)
+    bgBase: "#F8FAFC",
+    bgSurface: "#FFFFFF",
+    bgMid: "#F1F5F9",
+    bgElevated: "#FFFFFF",
 
     // Text
-    textPrimary: "#FFFFFF",
-    textSecondary: "#9AA7BD",
-    textBright: "#CBD5E1",
+    textPrimary: "#0F172A",
+    textSecondary: "#64748B",
+    textBright: "#334155",
 
     // Border & shadow
-    border: "#2A3548",
-    borderLight: "#3A4660",
-    separator: "#9AA7BD",
+    border: "#E2E8F0",
+    borderLight: "#CBD5E1",
+    separator: "#94A3B8",
   },
 
   shadows: {
-    dialog: "rgba(0,0,0,0.55) 0 8px 24px",
-    card: "rgba(0,0,0,0.35) 0 8px 8px",
+    dialog: "rgba(0,0,0,0.1) 0 4px 12px",
+    card: "rgba(0,0,0,0.05) 0 1px 3px",
   },
 
   radius: {
@@ -55,6 +53,6 @@ export const tokens = {
   },
 
   spacing: {
-    base: 8,  // 8px base unit
+    base: 8,
   },
 } as const;

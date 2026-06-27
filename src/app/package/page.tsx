@@ -34,10 +34,24 @@ const INTENT_LABELS: Record<InterviewQuestion["intent"], string> = {
   consistency: "Consistency",
 };
 
+const INTENT_COLORS: Record<InterviewQuestion["intent"], string> = {
+  ties: "var(--indigo-deep)",
+  finances: "var(--score-strong)",
+  purpose: "var(--score-moderate)",
+  history: "var(--info)",
+  consistency: "var(--trust-blue)",
+};
+
 function getScoreColor(score: number): string {
   if (score >= 80) return "var(--score-strong)";
   if (score >= 60) return "var(--score-moderate)";
   return "var(--score-weak)";
+}
+
+function getScoreLabel(score: number): string {
+  if (score >= 80) return "Strong";
+  if (score >= 60) return "Moderate";
+  return "Weak";
 }
 
 function groupByCategory(items: ChecklistItem[]): Record<string, ChecklistItem[]> {
@@ -141,6 +155,11 @@ export default function PackagePage() {
   const score = generatedPackage.score;
   const interviewQuestions = generatedPackage.interviewQuestions ?? [];
 
+  const checklistGroups = groupByCategory(checklist);
+  const categorySummary = Object.entries(checklistGroups)
+    .map(([cat, items]) => `${CATEGORY_LABELS[cat as ChecklistItem["category"]]} (${items.length})`)
+    .join(" · ");
+
   const handleDownload = () => {
     alert("Download feature coming soon! Your package will be exported as a PDF.");
   };
@@ -148,12 +167,46 @@ export default function PackagePage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="mb-8 animate-fade-in">
+      <div className="mb-6 animate-fade-in">
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">Your Visa Package</h1>
         <p className="text-sm text-[var(--text-secondary)]">
           Generated on {new Date(generatedPackage.generatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
         </p>
       </div>
+
+      {/* Readiness Score Summary */}
+      <Card className="mb-6 animate-slide-up">
+        <div className="flex items-center gap-5">
+          <ScoreRing score={score.total} size={100} strokeWidth={8} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-[var(--text-secondary)] mb-1">Your Readiness Score</p>
+            <p className="text-lg font-bold text-[var(--text-primary)]">
+              {score.total}/100
+              <span className="ml-2 text-sm font-medium" style={{ color: getScoreColor(score.total) }}>
+                ({getScoreLabel(score.total)})
+              </span>
+            </p>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              {score.band === "strong" && "Your application looks strong. Review the sections below for any final improvements."}
+              {score.band === "moderate" && "Your application is moderate. Address the recommended fixes to strengthen your case."}
+              {score.band === "weak" && "Your application needs improvement. Focus on the recommended fixes before your interview."}
+            </p>
+          </div>
+        </div>
+        {score.fixes.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-[var(--border)]">
+            <p className="text-xs font-semibold text-[var(--score-moderate)] mb-2">Top improvements:</p>
+            <ul className="space-y-1">
+              {score.fixes.slice(0, 2).map((fix, i) => (
+                <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-2">
+                  <span className="text-[var(--score-moderate)] mt-0.5">•</span>
+                  {fix}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
 
       {/* Tab navigation */}
       <div className="flex gap-1 p-1 bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl mb-6 overflow-x-auto animate-slide-up">
@@ -168,6 +221,12 @@ export default function PackagePage() {
             }`}
           >
             {tab}
+            {tab === "Checklist" && (
+              <span className="ml-1.5 text-[10px] opacity-80">({checklist.length})</span>
+            )}
+            {tab === "Questions" && (
+              <span className="ml-1.5 text-[10px] opacity-80">({interviewQuestions.length})</span>
+            )}
           </button>
         ))}
       </div>
@@ -178,7 +237,7 @@ export default function PackagePage() {
           <Card>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">Personal Statement</h2>
-              <span className="text-xs px-3 py-1 rounded-full bg-[var(--bg-mid)] text-[var(--text-secondary)] border border-[var(--border)]">
+              <span className="text-xs px-3 py-1.5 rounded-full bg-[var(--trust-blue)]/10 text-[var(--trust-blue)] border border-[var(--trust-blue)]/20 font-semibold">
                 {statement.wordCount} words
               </span>
             </div>
@@ -199,12 +258,24 @@ export default function PackagePage() {
       {/* Checklist tab */}
       {activeTab === "Checklist" && (
         <div className="animate-fade-in space-y-6">
+          {/* Category summary */}
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(checklistGroups).map(([cat, items]) => (
+              <span
+                key={cat}
+                className={`text-xs px-2.5 py-1 rounded-full border font-medium ${CATEGORY_COLORS[cat as ChecklistItem["category"]]}`}
+              >
+                {CATEGORY_LABELS[cat as ChecklistItem["category"]]} ({items.length})
+              </span>
+            ))}
+          </div>
+
           {checklist.length === 0 && (
             <Card className="text-center py-10">
               <p className="text-[var(--text-secondary)] text-sm">No checklist items found for your profile.</p>
             </Card>
           )}
-          {Object.entries(groupByCategory(checklist)).map(([category, items]) => (
+          {Object.entries(checklistGroups).map(([category, items]) => (
             <div key={category}>
               <div className="flex items-center gap-2 mb-3">
                 <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${CATEGORY_COLORS[category as ChecklistItem["category"]]}`}>
@@ -307,10 +378,11 @@ export default function PackagePage() {
       {activeTab === "Questions" && (
         <div className="animate-fade-in space-y-3">
           <p className="text-xs text-[var(--text-secondary)] px-1 mb-2">
-            Tap a question to reveal the suggested answer
+            These are the {interviewQuestions.length} questions a consular officer is most likely to ask. Tap to reveal the suggested answer.
           </p>
           {interviewQuestions.map((q) => {
             const isExpanded = expandedQ === q.id;
+            const intentColor = INTENT_COLORS[q.intent];
             return (
               <Card
                 key={q.id}
@@ -321,7 +393,14 @@ export default function PackagePage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--indigo-deep)]/15 text-[var(--indigo-deep)] border border-[var(--indigo-deep)]/30 font-medium capitalize">
+                      <span
+                        className="text-[10px] px-2 py-0.5 rounded-full border font-medium"
+                        style={{
+                          backgroundColor: `${intentColor}15`,
+                          color: intentColor,
+                          borderColor: `${intentColor}30`,
+                        }}
+                      >
                         {INTENT_LABELS[q.intent]}
                       </span>
                     </div>

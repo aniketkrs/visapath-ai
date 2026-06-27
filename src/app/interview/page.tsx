@@ -313,6 +313,11 @@ export default function InterviewPage() {
   }
 
   // -------------------------------------------------------------------------
+  // Interview brief (shown before any interaction)
+  // -------------------------------------------------------------------------
+  const showBrief = interviewMode !== "demo" && practiceTurns.length === 0 && voiceTurns.length === 0 && !interviewOver;
+
+  // -------------------------------------------------------------------------
   // Final report
   // -------------------------------------------------------------------------
 
@@ -344,6 +349,17 @@ export default function InterviewPage() {
       0
     );
     const overall = Math.round((avgConfidence + avgConsistency + avgTies) / 3);
+
+    const strengths: string[] = [];
+    const improvements: string[] = [];
+    if (avgConfidence >= 75) strengths.push("Confident delivery — you sound sure of your answers");
+    else improvements.push("Practice speaking more confidently — hesitation raises red flags");
+    if (avgConsistency >= 75) strengths.push("Consistent answers — your story holds together well");
+    else improvements.push("Ensure your answers are consistent with each other and your application");
+    if (avgTies >= 75) strengths.push("Strong ties to India — you clearly communicated your reasons to return");
+    else improvements.push("Strengthen your ties narrative — mention property, family, job commitments more explicitly");
+    if (totalRedFlags === 0) strengths.push("No red flags detected — clean responses throughout");
+    else improvements.push(`${totalRedFlags} red flag${totalRedFlags > 1 ? "s" : ""} detected — review and address these in your real interview`);
 
     return (
       <div className="max-w-2xl mx-auto px-4 py-8 pb-24 animate-fade-in">
@@ -389,6 +405,36 @@ export default function InterviewPage() {
             </div>
           )}
         </Card>
+
+        {/* Strengths & Areas to Improve */}
+        <div className="grid sm:grid-cols-2 gap-4 mb-8">
+          {strengths.length > 0 && (
+            <Card className="!p-4 border-l-2 !border-l-[var(--score-strong)]">
+              <p className="text-xs font-semibold text-[var(--score-strong)] uppercase tracking-wider mb-2">Strengths</p>
+              <ul className="space-y-1.5">
+                {strengths.map((s, i) => (
+                  <li key={i} className="text-xs text-[var(--text-bright)] flex items-start gap-2">
+                    <span className="text-[var(--score-strong)] mt-0.5">✓</span>
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {improvements.length > 0 && (
+            <Card className="!p-4 border-l-2 !border-l-[var(--score-moderate)]">
+              <p className="text-xs font-semibold text-[var(--score-moderate)] uppercase tracking-wider mb-2">Areas to Improve</p>
+              <ul className="space-y-1.5">
+                {improvements.map((s, i) => (
+                  <li key={i} className="text-xs text-[var(--text-bright)] flex items-start gap-2">
+                    <span className="text-[var(--score-moderate)] mt-0.5">→</span>
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </div>
 
         <h2 className="text-lg font-semibold mb-4">Turn-by-Turn Breakdown</h2>
         <div className="space-y-3 mb-8">
@@ -536,6 +582,27 @@ export default function InterviewPage() {
           Demo
         </button>
       </div>
+
+      {/* Interview brief — shown before first interaction */}
+      {showBrief && (
+        <Card className="mb-6 border-l-2 !border-l-[var(--trust-blue)] bg-[var(--trust-blue)]/5 animate-fade-in">
+          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-2">How this works</h3>
+          <ul className="space-y-1.5 text-xs text-[var(--text-secondary)]">
+            <li className="flex items-start gap-2">
+              <span className="text-[var(--trust-blue)] mt-0.5">1.</span>
+              An AI consular officer will ask you {questions.length} personalized questions about your visa application.
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-[var(--trust-blue)] mt-0.5">2.</span>
+              Answer as you would in the real interview — be specific and honest.
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-[var(--trust-blue)] mt-0.5">3.</span>
+              After each answer, you&apos;ll get a score with feedback on confidence, consistency, and ties strength.
+            </li>
+          </ul>
+        </Card>
+      )}
 
       {/* Current Question (practice + exam modes) */}
       {interviewMode !== "demo" && currentQuestion && (
