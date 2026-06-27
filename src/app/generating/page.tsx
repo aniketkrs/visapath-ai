@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useVisaStore } from "@/store/useVisaStore";
+import { Button } from "@/components/ui/Button";
 
 const steps = [
   { text: "Analysing your ties to India", icon: "🇮🇳" },
@@ -18,18 +19,16 @@ export default function GeneratingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Animate through steps
+  const runGeneration = useCallback(() => {
+    setError(null);
+    setCurrentStep(0);
+    setIsGenerating(true);
+
     const interval = setInterval(() => {
-      setCurrentStep((prev) => {
-        if (prev < steps.length - 1) return prev + 1;
-        return prev;
-      });
+      setCurrentStep((prev) => (prev < steps.length - 1 ? prev + 1 : prev));
     }, 2500);
 
-    // Call API
     const generatePackage = async () => {
-      setIsGenerating(true);
       try {
         const response = await fetch("/api/generate-package", {
           method: "POST",
@@ -37,32 +36,39 @@ export default function GeneratingPage() {
           body: JSON.stringify(intakeAnswers),
         });
 
+        if (!response.ok) {
+          throw new Error(`Server error (${response.status})`);
+        }
+
         const pkg = await response.json();
+        if (!pkg?.statement || !pkg?.checklist) {
+          throw new Error("Incomplete package received");
+        }
+
         setGeneratedPackage(pkg);
-        
-        // Wait for animation to finish, then navigate
         setTimeout(() => {
           setIsGenerating(false);
           router.push("/package");
         }, 2000);
       } catch (err) {
         console.error("Generation failed:", err);
-        setError("Generation taking longer than expected...");
-        
-        // Fallback after error
-        setTimeout(() => {
-          setIsGenerating(false);
-          router.push("/package");
-        }, 3000);
+        setIsGenerating(false);
+        clearInterval(interval);
+        setError("Something went wrong while generating your package. Please try again.");
       }
     };
 
     generatePackage();
     return () => clearInterval(interval);
+  }, [intakeAnswers, setGeneratedPackage, setIsGenerating, router]);
+
+  useEffect(() => {
+    const cleanup = runGeneration();
+    return cleanup;
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4">
+    <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4 animate-fade-in">
       {/* Spinning ring */}
       <div className="relative w-24 h-24 mb-10">
         <div className="absolute inset-0 rounded-full border-2 border-[var(--bg-mid)]" />
@@ -112,7 +118,12 @@ export default function GeneratingPage() {
       </div>
 
       {error && (
-        <p className="mt-6 text-sm text-[var(--score-moderate)]">{error}</p>
+        <div className="mt-8 text-center animate-fade-in">
+          <p className="text-sm text-[var(--score-weak)] mb-4">{error}</p>
+          <Button variant="primary" onClick={() => runGeneration()}>
+            Try Again
+          </Button>
+        </div>
       )}
     </div>
   );

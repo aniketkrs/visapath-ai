@@ -114,8 +114,19 @@ export default function IntakePage() {
 
   if (!currentQuestion) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-12 text-center">
-        <p className="text-[var(--text-secondary)]">Loading questions...</p>
+      <div className="max-w-lg mx-auto px-4 py-12">
+        <div className="space-y-3 mb-8">
+          <div className="h-1.5 shimmer-bg rounded-full" />
+        </div>
+        <div className="rounded-2xl border border-[var(--border)] p-6 space-y-4">
+          <div className="h-6 w-48 shimmer-bg rounded-lg" />
+          <div className="h-4 w-72 shimmer-bg rounded-lg" />
+          <div className="h-12 shimmer-bg rounded-xl mt-4" />
+        </div>
+        <div className="flex justify-between items-center mt-6">
+          <div className="h-10 w-20 shimmer-bg rounded-xl" />
+          <div className="h-10 w-24 shimmer-bg rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -264,7 +275,7 @@ export default function IntakePage() {
       </Card>
 
       {/* Navigation */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
         <Button variant="ghost" onClick={handleBack}>
           ← Back
         </Button>

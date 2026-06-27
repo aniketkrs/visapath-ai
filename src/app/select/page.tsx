@@ -1,9 +1,12 @@
 "use client";
+import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useRouter } from "next/navigation";
 
 export default function SelectPage() {
   const router = useRouter();
+  const [hasError, setHasError] = useState(false);
 
   const visaTypes = [
     {
@@ -35,8 +38,25 @@ export default function SelectPage() {
     },
   ];
 
+  if (hasError) {
+    return (
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--bg-mid)] flex items-center justify-center mb-6 text-3xl">
+          ⚠️
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
+        <p className="text-[var(--text-secondary)] mb-8 max-w-sm">
+          We hit an unexpected error loading visa types.
+        </p>
+        <Button variant="primary" onClick={() => { setHasError(false); window.location.reload(); }}>
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-12">
+    <div className="max-w-3xl mx-auto px-4 py-12 animate-fade-in">
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold mb-3 animate-fade-in">
           Select your visa type
@@ -51,7 +71,7 @@ export default function SelectPage() {
           <Card
             key={visa.id}
             hover={visa.available}
-            onClick={() => visa.available && router.push("/intake")}
+            onClick={() => { try { visa.available && router.push("/intake"); } catch { setHasError(true); } }}
             className={`animate-slide-up ${!visa.available ? "opacity-50 cursor-not-allowed" : ""}`}
           >
             <div className="flex items-center gap-4">

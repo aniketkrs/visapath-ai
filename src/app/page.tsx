@@ -1,13 +1,42 @@
 "use client";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useRouter } from "next/navigation";
+import { preloadDemo } from "@/lib/demo-preload";
 
 export default function LandingPage() {
   const router = useRouter();
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: ErrorEvent) => {
+      e.preventDefault();
+      setHasError(true);
+    };
+    window.addEventListener("error", handler);
+    return () => window.removeEventListener("error", handler);
+  }, []);
+
+  if (hasError) {
+    return (
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--bg-mid)] flex items-center justify-center mb-6 text-3xl">
+          ⚠️
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
+        <p className="text-[var(--text-secondary)] mb-8 max-w-sm">
+          We hit an unexpected error loading this page.
+        </p>
+        <Button variant="primary" onClick={() => { setHasError(false); window.location.reload(); }}>
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)]">
+    <div className="min-h-[calc(100vh-8rem)] animate-fade-in">
       {/* Hero */}
       <section className="relative overflow-hidden">
         {/* Background gradient */}
@@ -51,6 +80,15 @@ export default function LandingPage() {
             </Button>
           </div>
 
+          {/* Demo mode */}
+          <button
+            onClick={() => { preloadDemo(); router.push("/package"); }}
+            className="mt-4 text-sm text-[var(--text-secondary)] hover:text-[var(--trust-blue)] underline underline-offset-2 transition-colors animate-fade-in"
+            style={{ animationDelay: "0.3s" }}
+          >
+            Skip to Demo →
+          </button>
+
           {/* Trust line */}
           <p className="mt-6 text-xs text-[var(--text-secondary)] animate-fade-in" style={{ animationDelay: "0.4s" }}>
             AI-assisted preparation · Never an AI attorney · Your data stays in your browser
@@ -90,7 +128,7 @@ export default function LandingPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-6 mt-12">
+        <div className="grid grid-cols-3 gap-4 sm:gap-6 mt-12">
           {[
             { value: "1M+", label: "Indian visa apps/year" },
             { value: "~16%", label: "B-1/B-2 refusal rate" },

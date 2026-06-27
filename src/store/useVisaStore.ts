@@ -18,8 +18,8 @@ interface VisaStore {
   setIsGenerating: (v: boolean) => void;
 
   // Interview
-  interviewMode: "practice" | "exam";
-  setInterviewMode: (mode: "practice" | "exam") => void;
+  interviewMode: "practice" | "exam" | "demo";
+  setInterviewMode: (mode: "practice" | "exam" | "demo") => void;
 
   // Tracker
   tracker: TrackerState;

@@ -2,7 +2,9 @@
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const FEATURES = [
   {
@@ -35,6 +37,41 @@ export default function CopilotPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: ErrorEvent) => {
+      e.preventDefault();
+      setHasError(true);
+    };
+    window.addEventListener("error", handler);
+    return () => window.removeEventListener("error", handler);
+  }, []);
+
+  const handleSubmit = () => {
+    if (!email.trim()) {
+      setEmailError("Please enter your email");
+      return;
+    }
+    if (!EMAIL_RE.test(email)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+    setEmailError(null);
+    setSubmitted(true);
+  };
+
+  if (hasError) {
+    return (
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--bg-mid)] flex items-center justify-center mb-6 text-3xl">⚠️</div>
+        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
+        <p className="text-[var(--text-secondary)] mb-8 max-w-sm">We hit an unexpected error.</p>
+        <Button variant="primary" onClick={() => { setHasError(false); window.location.reload(); }}>Try Again</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
@@ -151,23 +188,25 @@ export default function CopilotPage() {
             </p>
           </div>
         ) : (
-          <div className="flex gap-3">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com"
-              className="flex-1 bg-[var(--bg-mid)] border border-[var(--border)] rounded-full px-5 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:border-[var(--trust-blue)] focus:ring-1 focus:ring-[var(--trust-blue)] transition-all"
-            />
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => {
-                if (email.includes("@")) setSubmitted(true);
-              }}
-            >
-              Notify Me
-            </Button>
+          <div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
+                placeholder="your@email.com"
+                onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+                className={`flex-1 bg-[var(--bg-mid)] border rounded-full px-5 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:border-[var(--trust-blue)] focus:ring-1 focus:ring-[var(--trust-blue)] transition-all ${
+                  emailError ? "border-[var(--score-weak)]" : "border-[var(--border)]"
+                }`}
+              />
+              <Button variant="primary" size="md" onClick={handleSubmit}>
+                Notify Me
+              </Button>
+            </div>
+            {emailError && (
+              <p className="mt-2 text-xs text-[var(--score-weak)]">{emailError}</p>
+            )}
           </div>
         )}
       </div>

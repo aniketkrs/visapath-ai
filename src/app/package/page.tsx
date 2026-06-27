@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -49,10 +49,73 @@ function groupByCategory(items: ChecklistItem[]): Record<string, ChecklistItem[]
   return groups;
 }
 
+function ShimmerCard() {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-5 space-y-3">
+      <div className="h-5 w-40 shimmer-bg rounded-lg" />
+      <div className="h-4 w-full shimmer-bg rounded-lg" />
+      <div className="h-4 w-3/4 shimmer-bg rounded-lg" />
+      <div className="h-4 w-5/6 shimmer-bg rounded-lg" />
+    </div>
+  );
+}
+
+function ShimmerTabs() {
+  return (
+    <div className="flex gap-1 p-1 bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl mb-6">
+      {["Statement", "Checklist", "Score", "Questions"].map((t) => (
+        <div key={t} className="flex-1 h-10 shimmer-bg rounded-lg" />
+      ))}
+    </div>
+  );
+}
+
+function PackageShimmer() {
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="mb-8 space-y-2">
+        <div className="h-8 w-56 shimmer-bg rounded-lg" />
+        <div className="h-4 w-40 shimmer-bg rounded-lg" />
+      </div>
+      <ShimmerTabs />
+      <div className="space-y-4">
+        <ShimmerCard />
+        <ShimmerCard />
+        <ShimmerCard />
+      </div>
+    </div>
+  );
+}
+
 export default function PackagePage() {
-  const { generatedPackage } = useVisaStore();
+  const { generatedPackage, isGenerating } = useVisaStore();
   const [activeTab, setActiveTab] = useState<Tab>("Statement");
   const [expandedQ, setExpandedQ] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: ErrorEvent) => {
+      e.preventDefault();
+      setHasError(true);
+    };
+    window.addEventListener("error", handler);
+    return () => window.removeEventListener("error", handler);
+  }, []);
+
+  if (hasError) {
+    return (
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center px-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--bg-mid)] flex items-center justify-center mb-6 text-3xl">⚠️</div>
+        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
+        <p className="text-[var(--text-secondary)] mb-8 max-w-sm">We hit an error displaying your package.</p>
+        <Button variant="primary" onClick={() => { setHasError(false); window.location.reload(); }}>Try Again</Button>
+      </div>
+    );
+  }
+
+  if (isGenerating && !generatedPackage) {
+    return <PackageShimmer />;
+  }
 
   if (!generatedPackage) {
     return (
@@ -73,7 +136,10 @@ export default function PackagePage() {
     );
   }
 
-  const { statement, checklist, score, interviewQuestions } = generatedPackage;
+  const statement = generatedPackage.statement;
+  const checklist = generatedPackage.checklist ?? [];
+  const score = generatedPackage.score;
+  const interviewQuestions = generatedPackage.interviewQuestions ?? [];
 
   const handleDownload = () => {
     alert("Download feature coming soon! Your package will be exported as a PDF.");
@@ -133,6 +199,11 @@ export default function PackagePage() {
       {/* Checklist tab */}
       {activeTab === "Checklist" && (
         <div className="animate-fade-in space-y-6">
+          {checklist.length === 0 && (
+            <Card className="text-center py-10">
+              <p className="text-[var(--text-secondary)] text-sm">No checklist items found for your profile.</p>
+            </Card>
+          )}
           {Object.entries(groupByCategory(checklist)).map(([category, items]) => (
             <div key={category}>
               <div className="flex items-center gap-2 mb-3">
