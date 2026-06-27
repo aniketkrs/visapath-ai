@@ -221,9 +221,10 @@ export default function InterviewPage() {
     if (voiceStatus !== "idle") {
       await stopVoice();
     } else {
-      await startExam();
+      const firstName = (intakeAnswers as Partial<IntakeAnswers>)?.fullName?.split(" ")[0] || "there";
+      await startExam({ name: firstName });
     }
-  }, [voiceStatus, stopVoice, startExam]);
+  }, [voiceStatus, stopVoice, startExam, intakeAnswers]);
 
   // ---- Cached mode: auto-advance ------------------------------------------
 
@@ -682,7 +683,8 @@ export default function InterviewPage() {
             <button
               onClick={async () => {
                 setExamInputMethod("voice");
-                await startExam();
+                const firstName = (intakeAnswers as Partial<IntakeAnswers>)?.fullName?.split(" ")[0] || "there";
+                await startExam({ name: firstName });
               }}
               className="flex flex-col items-center gap-3 p-6 rounded-2xl border-2 transition-all duration-200 hover:scale-[1.02]"
               style={{

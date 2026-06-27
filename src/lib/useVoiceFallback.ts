@@ -25,7 +25,7 @@ export interface FallbackTurn {
 }
 
 interface ConversationHandle {
-  startSession: (opts: { signedUrl: string }) => Promise<void>;
+  startSession: (opts: { signedUrl: string; dynamicVariables?: Record<string, string> }) => Promise<void>;
   endSession: () => Promise<void>;
 }
 
@@ -95,7 +95,7 @@ export function useVoiceFallback() {
 
   // ---- Tier 1: Live voice (ElevenLabs) ------------------------------------
 
-  const startVoice = useCallback(async () => {
+  const startVoice = useCallback(async (dynamicVariables?: Record<string, string>) => {
     setMode("voice");
     setTurns([]);
     setStatus("connecting");
@@ -158,7 +158,10 @@ export function useVoiceFallback() {
       });
 
       conversationRef.current = conversation;
-      await conversation.startSession({ signedUrl });
+      await conversation.startSession({
+        signedUrl,
+        dynamicVariables: dynamicVariables ?? {},
+      });
     } catch {
       // Auto-fallback: voice → text
       setMode("text");
@@ -176,8 +179,8 @@ export function useVoiceFallback() {
 
   // ---- Public entry points ------------------------------------------------
 
-  const startExam = useCallback(async () => {
-    await startVoice();
+  const startExam = useCallback(async (dynamicVariables?: Record<string, string>) => {
+    await startVoice(dynamicVariables);
   }, [startVoice]);
 
   const startPractice = useCallback(() => {
