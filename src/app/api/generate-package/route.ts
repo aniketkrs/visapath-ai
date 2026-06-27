@@ -1,62 +1,185 @@
 import { NextResponse } from "next/server";
 import { computeScore } from "@/lib/scoring";
 import { samplePackage } from "@/lib/fixtures/sample-package";
+import { generatePersonalizedInterview } from "@/lib/fixtures/sample-interview";
 import type { IntakeAnswers, GeneratedPackage } from "@/lib/types";
+
+async function callElevenLabsAgent(
+  apiKey: string,
+  agentId: string,
+  message: string
+): Promise<string> {
+  const signedUrlRes = await fetch(
+    `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
+    { headers: { "xi-api-key": apiKey } }
+  );
+  if (!signedUrlRes.ok) {
+    throw new Error(`Signed URL request failed: ${signedUrlRes.status}`);
+  }
+  const { signed_url } = await signedUrlRes.json();
+  if (!signed_url) throw new Error("No signed_url in response");
+
+  return new Promise<string>((resolve, reject) => {
+    const ws = new WebSocket(signed_url);
+    let collected = "";
+    let settled = false;
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        ws.close();
+        reject(new Error("ElevenLabs WebSocket timed out after 25s"));
+      }
+    }, 25000);
+
+    const done = (text: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (pingInterval) clearInterval(pingInterval);
+      try { ws.close(); } catch {}
+      resolve(text);
+    };
+
+    const fail = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (pingInterval) clearInterval(pingInterval);
+      try { ws.close(); } catch {}
+      reject(err);
+    };
+
+    ws.onopen = () => {
+      pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "ping" }));
+        }
+      }, 15000);
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      let data: any;
+      try {
+        data = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString());
+      } catch {
+        collected += typeof event.data === "string" ? event.data : event.data.toString();
+        return;
+      }
+
+      const t = data.type;
+
+      if (t === "conversation_initiation_metadata" || t === "initiation_response") {
+        ws.send(
+          JSON.stringify({
+            type: "user_message",
+            text: message,
+          })
+        );
+        return;
+      }
+
+      if (t === "agent_response" || t === "agent_response_event") {
+        const chunk = data.agent_response ?? data.text ?? data.content ?? "";
+        if (chunk) collected += chunk;
+        return;
+      }
+
+      if (t === "text" || t === "delta") {
+        const chunk = data.text ?? data.delta?.text ?? data.content ?? "";
+        if (chunk) collected += chunk;
+        return;
+      }
+
+      if (t === "audio" || t === "ping" || t === "pong") return;
+
+      if (
+        t === "conversation_end" ||
+        t === "agent_response_end" ||
+        t === "turn_end" ||
+        t === "response_done"
+      ) {
+        done(collected);
+        return;
+      }
+
+      if (data.text && typeof data.text === "string") {
+        collected += data.text;
+      }
+    };
+
+    ws.onerror = (err: Event) => {
+      fail(new Error(`WebSocket error: ${JSON.stringify(err)}`));
+    };
+
+    ws.onclose = (ev: CloseEvent) => {
+      if (!settled) {
+        if (collected.length > 0) done(collected);
+        else fail(new Error(`WebSocket closed: code=${ev.code} reason=${ev.reason}`));
+      }
+    };
+  });
+}
+
+function extractJson(text: string): any | null {
+  try {
+    return JSON.parse(text);
+  } catch {}
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      return JSON.parse(match[0]);
+    } catch {}
+  }
+  return null;
+}
+
+function isValidPackage(obj: any): obj is GeneratedPackage {
+  return (
+    obj &&
+    typeof obj === "object" &&
+    obj.statement &&
+    typeof obj.statement.body === "string" &&
+    Array.isArray(obj.checklist) &&
+    obj.score &&
+    typeof obj.score.total === "number" &&
+    Array.isArray(obj.interviewQuestions)
+  );
+}
 
 export async function POST(request: Request) {
   try {
     const answers: IntakeAnswers = await request.json();
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const agentId = process.env.ELEVENLABS_TEXT_AGENT_ID;
-
-    // Always compute deterministic score
     const score = computeScore(answers);
 
-    // Try ElevenLabs text agent if credentials exist
     if (apiKey && agentId) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 25000);
-
-        const response = await fetch(
-          `https://api.elevenlabs.io/v1/convai/conversation`,
-          {
-            method: "POST",
-            headers: {
-              "xi-api-key": apiKey,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              agent_id: agentId,
-              mode: "text",
-              messages: [
-                {
-                  role: "user",
-                  content: JSON.stringify(answers),
-                },
-              ],
-            }),
-            signal: controller.signal,
-          }
+        const agentText = await callElevenLabsAgent(
+          apiKey,
+          agentId,
+          JSON.stringify(answers)
         );
 
-        clearTimeout(timeout);
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data && typeof data === "object" && data.statement) {
-            const pkg = data as GeneratedPackage;
-            pkg.score = score;
-            pkg.generatedAt = new Date().toISOString();
-            return NextResponse.json(pkg);
-          }
+        const parsed = extractJson(agentText);
+        if (parsed && isValidPackage(parsed)) {
+          console.log("source: llm");
+          const pkg = parsed as GeneratedPackage;
+          pkg.score = score;
+          pkg.generatedAt = new Date().toISOString();
+          return NextResponse.json(pkg);
         }
-      } catch (elevenLabsError) {
-        console.error("ElevenLabs call failed, using template fallback:", elevenLabsError);
+
+        console.log("source: fallback");
+        console.warn("Agent response was not valid JSON or missing fields:", agentText.slice(0, 200));
+      } catch (agentError) {
+        console.log("source: fallback");
+        console.error("ElevenLabs agent call failed, using template fallback:", agentError);
       }
     }
 
-    // Fallback: generate a personalized package using templates
     const fallback: GeneratedPackage = {
       ...samplePackage,
       score,
@@ -141,25 +264,133 @@ function generateFallbackChecklist(
   answers: Partial<IntakeAnswers>
 ): GeneratedPackage["checklist"] {
   const base = [...samplePackage.checklist];
+  const extras: GeneratedPackage["checklist"] = [];
 
   if (answers.employmentStatus === "self_employed") {
-    return base.filter(
-      (item) =>
-        !["employer_noc", "salary_slips", "form16"].includes(item.id)
+    const filtered = base.filter(
+      (item) => !["employer_noc", "salary_slips", "form16"].includes(item.id)
     );
+    extras.push(
+      {
+        id: "gst_returns",
+        name: "GST Returns (Last 2 Years)",
+        reason: "Proves business revenue and tax compliance for self-employed applicants",
+        whereToGet: "Download from gst.gov.in",
+        copyType: "copy",
+        category: "financial",
+        required: true,
+      },
+      {
+        id: "company_registration",
+        name: "Company Registration Certificate",
+        reason: "Establishes the legitimacy of your business",
+        whereToGet: "Ministry of Corporate Affairs / Registrar of Firms",
+        copyType: "copy",
+        category: "ties",
+        required: true,
+      },
+      {
+        id: "business_bank_statements",
+        name: "Business Bank Statements (Last 6 Months)",
+        reason: "Shows business cash flow and financial health",
+        whereToGet: "Request from your business bank",
+        copyType: "original",
+        freshnessRule: "Issued within 1 week of interview",
+        category: "financial",
+        required: true,
+      }
+    );
+    return [...filtered, ...extras];
   }
 
   if (answers.employmentStatus === "retired") {
-    return base.filter(
+    const filtered = base.filter(
       (item) => !["employer_noc", "salary_slips", "form16"].includes(item.id)
+    );
+    extras.push(
+      {
+        id: "pension_certificate",
+        name: "Pension Certificate / Pension Passbook",
+        reason: "Proves regular income post-retirement",
+        whereToGet: "Pension disbursing bank / pension authority",
+        copyType: "copy",
+        category: "financial",
+        required: true,
+      },
+      {
+        id: "retirement_bank_statements",
+        name: "Bank Statements (Last 6 Months)",
+        reason: "Shows pension credits and sufficient funds for the trip",
+        whereToGet: "Request from your bank",
+        copyType: "original",
+        freshnessRule: "Issued within 1 week of interview",
+        category: "financial",
+        required: true,
+      }
+    );
+    return [...filtered, ...extras];
+  }
+
+  if (answers.purposeOfVisit === "medical") {
+    extras.push(
+      {
+        id: "hospital_appointment",
+        name: "Hospital Appointment Letter",
+        reason: "Confirms your scheduled medical appointment in the US",
+        whereToGet: "Request from the US hospital",
+        copyType: "original",
+        category: "purpose",
+        required: true,
+      },
+      {
+        id: "medical_records",
+        name: "Medical Records / Doctor's Referral",
+        reason: "Shows medical necessity for travelling to the US for treatment",
+        whereToGet: "Your treating physician in India",
+        copyType: "copy",
+        category: "purpose",
+        required: true,
+      }
     );
   }
 
-  return base;
+  if (answers.purposeOfVisit === "business" || answers.purposeOfVisit === "conference") {
+    if (!extras.find((e) => e.id === "invitation_letter")) {
+      extras.push({
+        id: "business_invitation",
+        name: `Invitation Letter${answers.invitingCompany ? ` from ${answers.invitingCompany}` : " from Host Company"}`,
+        reason: "Confirms the business purpose and dates of your visit",
+        whereToGet: "Request from the inviting company",
+        copyType: "original",
+        category: "purpose",
+        required: true,
+      });
+    }
+  }
+
+  if (!answers.internationalTravelHistory || answers.internationalTravelHistory.length === 0) {
+    extras.push({
+      id: "stronger_ties",
+      name: "Stronger Ties Documentation",
+      reason: "As a first-time international traveler, additional evidence of ties to India strengthens your case",
+      whereToGet: "Gather property papers, family dependency proof, employment letter, fixed deposit certificates",
+      copyType: "copy",
+      category: "ties",
+      required: true,
+    });
+  }
+
+  return [...base, ...extras];
 }
 
 function generateFallbackQuestions(
   answers: Partial<IntakeAnswers>
 ): GeneratedPackage["interviewQuestions"] {
-  return samplePackage.interviewQuestions;
+  const cached = generatePersonalizedInterview(answers);
+  return cached.map((turn, i) => ({
+    id: `q${i + 1}`,
+    officerPrompt: turn.officer,
+    intent: (["purpose", "ties", "finances", "ties", "history", "consistency"] as const)[i] || "consistency",
+    suggestedAnswer: turn.applicant,
+  }));
 }
