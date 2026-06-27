@@ -58,61 +58,122 @@ async function callElevenLabsForScore(
   transcript: string,
   history: string[]
 ): Promise<TurnScore | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const prompt = buildScoringPrompt(profile, questionText, transcript, history);
+  const raw = await callElevenLabsAgent(apiKey, agentId, prompt);
+  return parseAndValidateScore(raw);
+}
 
-  try {
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversation`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          agent_id: agentId,
-          mode: "text",
-          messages: [
-            {
-              role: "user",
-              content: buildScoringPrompt(
-                profile,
-                questionText,
-                transcript,
-                history
-              ),
-            },
-          ],
-        }),
-        signal: controller.signal,
-      }
-    );
-
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      console.error("ElevenLabs API error:", response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    const raw =
-      data?.statement?.body ||
-      data?.output_text ||
-      data?.text ||
-      (typeof data === "string" ? data : null);
-
-    if (!raw) {
-      console.error("No text in ElevenLabs response:", JSON.stringify(data));
-      return null;
-    }
-
-    return parseAndValidateScore(raw);
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
+async function callElevenLabsAgent(
+  apiKey: string,
+  agentId: string,
+  message: string
+): Promise<string> {
+  const signedUrlRes = await fetch(
+    `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
+    { headers: { "xi-api-key": apiKey } }
+  );
+  if (!signedUrlRes.ok) {
+    throw new Error(`Signed URL request failed: ${signedUrlRes.status}`);
   }
+  const { signed_url } = await signedUrlRes.json();
+  if (!signed_url) throw new Error("No signed_url in response");
+
+  return new Promise<string>((resolve, reject) => {
+    const ws = new WebSocket(signed_url);
+    let collected = "";
+    let settled = false;
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        ws.close();
+        reject(new Error("ElevenLabs WebSocket timed out after 15s"));
+      }
+    }, 15000);
+
+    const done = (text: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (pingInterval) clearInterval(pingInterval);
+      try { ws.close(); } catch {}
+      resolve(text);
+    };
+
+    const fail = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (pingInterval) clearInterval(pingInterval);
+      try { ws.close(); } catch {}
+      reject(err);
+    };
+
+    ws.onopen = () => {
+      pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "ping" }));
+        }
+      }, 10000);
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      let data: any;
+      try {
+        data = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString());
+      } catch {
+        collected += typeof event.data === "string" ? event.data : event.data.toString();
+        return;
+      }
+
+      const t = data.type;
+
+      if (t === "conversation_initiation_metadata" || t === "initiation_response") {
+        ws.send(JSON.stringify({ type: "user_message", text: message }));
+        return;
+      }
+
+      if (t === "agent_response" || t === "agent_response_event") {
+        const chunk = data.agent_response ?? data.text ?? data.content ?? "";
+        if (chunk) collected += chunk;
+        return;
+      }
+
+      if (t === "text" || t === "delta") {
+        const chunk = data.text ?? data.delta?.text ?? data.content ?? "";
+        if (chunk) collected += chunk;
+        return;
+      }
+
+      if (t === "audio" || t === "ping" || t === "pong") return;
+
+      if (
+        t === "conversation_end" ||
+        t === "agent_response_end" ||
+        t === "turn_end" ||
+        t === "response_done"
+      ) {
+        done(collected);
+        return;
+      }
+
+      if (data.text && typeof data.text === "string") {
+        collected += data.text;
+      }
+    };
+
+    ws.onerror = (err: Event) => {
+      fail(new Error(`WebSocket error: ${JSON.stringify(err)}`));
+    };
+
+    ws.onclose = (ev: CloseEvent) => {
+      if (!settled) {
+        if (collected.length > 0) done(collected);
+        else fail(new Error(`WebSocket closed: code=${ev.code} reason=${ev.reason}`));
+      }
+    };
+  });
 }
 
 function buildScoringPrompt(
