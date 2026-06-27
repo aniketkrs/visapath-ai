@@ -24,6 +24,9 @@ interface VisaStore {
   // Tracker
   tracker: TrackerState;
   setTrackerStage: (stage: number) => void;
+
+  // Full reset
+  clearAll: () => void;
 }
 
 export const useVisaStore = create<VisaStore>()(
@@ -57,6 +60,16 @@ export const useVisaStore = create<VisaStore>()(
       tracker: { stage: 1, updatedAt: new Date().toISOString() },
       setTrackerStage: (stage) =>
         set({ tracker: { stage, updatedAt: new Date().toISOString() } }),
+
+      clearAll: () =>
+        set({
+          intakeAnswers: { visaType: "B1_B2", internationalTravelHistory: [] },
+          intakeStep: 0,
+          generatedPackage: null,
+          isGenerating: false,
+          interviewMode: "practice",
+          tracker: { stage: 1, updatedAt: new Date().toISOString() },
+        }),
     }),
     {
       name: "visapath-store",

@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useRouter } from "next/navigation";
 import { preloadDemo } from "@/lib/demo-preload";
+import { useVisaStore } from "@/store/useVisaStore";
 
 export default function LandingPage() {
   const router = useRouter();
+  const { clearAll } = useVisaStore();
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
@@ -82,7 +84,7 @@ export default function LandingPage() {
 
           {/* CTA */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-slide-up" style={{ animationDelay: "0.2s" }}>
-            <Button size="lg" onClick={() => router.push("/select")}>
+            <Button size="lg" onClick={() => { clearAll(); router.push("/select"); }}>
               Start Your Application →
             </Button>
             <Button variant="secondary" size="lg" onClick={() => { preloadDemo(); router.push("/package"); }}>

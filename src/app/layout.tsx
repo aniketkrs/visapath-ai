@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   title: "VisaPath AI — Beat the 214(b) Refusal",
   description:
     "AI-powered US visa preparation for Indian applicants. Get a personalized package — statement, checklist, readiness score, and mock interview — in 20 minutes.",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -25,8 +29,12 @@ export default function RootLayout({
           <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--bg-base)]/90 backdrop-blur-md">
             <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
               <a href="/" className="flex items-center gap-2 group">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--trust-blue)] to-[var(--indigo-deep)] flex items-center justify-center text-white font-bold text-sm">
-                  V
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--trust-blue)] to-[var(--indigo-deep)] flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                  <svg width="16" height="16" viewBox="0 0 100 100" fill="none">
+                    <path d="M50 10 L82 22 L82 52 Q82 74 50 88 Q18 74 18 52 L18 22 Z" fill="white" opacity="0.2"/>
+                    <path d="M50 18 L74 28 L74 52 Q74 68 50 78 Q26 68 26 52 L26 28 Z" fill="white"/>
+                    <text x="50" y="56" font-family="Arial" font-size="20" font-weight="bold" fill="#2563EB" text-anchor="middle">V</text>
+                  </svg>
                 </div>
                 <span className="text-lg font-bold text-[var(--text-primary)] group-hover:text-[var(--trust-blue)] transition-colors">
                   VisaPath<span className="text-[var(--trust-blue)]">AI</span>
